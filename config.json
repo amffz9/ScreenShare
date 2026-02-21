@@ -1,0 +1,4 @@
+{
+  "port": 8080,
+  "stunServer": "stun:stun.l.google.com:19302"
+}
