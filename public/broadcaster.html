@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Broadcaster</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>📡 Screen Broadcaster</h1>
+        <p>Share your screen or a capture device with viewers.</p>
+
+        <div class="step">
+            <h3>Step 1: Setup</h3>
+            <p><strong>Server IP:</strong> <span id="serverIp">Detecting...</span></p>
+
+            <input type="text" id="broadcasterName" placeholder="Enter your name" value="My Screen">
+
+            <div style="margin: 10px 0;">
+                <label><strong>Source:</strong></label>
+                <select id="sourceType" style="padding: 8px; font-size: 14px; border-radius: 4px; border: 1px solid #ddd; margin-left: 5px;">
+                    <option value="screen">Screen Share</option>
+                    <option value="device">Capture Device (HDMI/USB)</option>
+                </select>
+            </div>
+
+            <div id="deviceSelectors" style="display: none; margin: 10px 0; padding: 10px; background: #f0f0f0; border-radius: 4px;">
+                <label><strong>Video Device:</strong></label>
+                <select id="videoDevice" style="padding: 8px; font-size: 14px; border-radius: 4px; border: 1px solid #ddd; width: 100%; margin: 5px 0;"></select>
+                <label><strong>Audio Device:</strong></label>
+                <select id="audioDevice" style="padding: 8px; font-size: 14px; border-radius: 4px; border: 1px solid #ddd; width: 100%; margin: 5px 0;">
+                    <option value="none">No Audio</option>
+                </select>
+            </div>
+
+            <div style="margin: 10px 0;">
+                <label>
+                    <input type="checkbox" id="includeAudio" checked>
+                    Include audio (when available)
+                </label>
+            </div>
+
+            <button id="startBtn" class="btn-primary">Start Broadcasting</button>
+            <button id="castBtn" class="btn-cast" style="display: none;">📲 Cast Viewer to TV</button>
+            <button id="stopBtn" class="btn-primary" disabled>Stop Broadcasting</button>
+            <div id="status" class="status info"></div>
+        </div>
+
+        <div id="broadcastSection" style="display:none;">
+            <div id="previewSection" style="display:none;">
+                <div class="preview">
+                    <h3>Your Screen Preview:</h3>
+                    <video id="preview" autoplay muted playsinline></video>
+                </div>
+            </div>
+
+            <div id="viewersSection" style="display:none;">
+                <h3>Connected Viewers:</h3>
+                <div id="viewersList" class="viewer-list">
+                    <p style="color: #999;">No viewers connected yet</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/common.js"></script>
+    <script>
+        // Init shared logic
+        fetchAndDisplayIp('serverIp');
+
+        // Setup Cast: Cast the Viewer page to the TV
+        const viewerUrl = new URL('viewer', window.location.href).href;
+        setupCastButton('castBtn', viewerUrl);
+
+        // Core App Logic
+        let ws = null;
+        let myId = null;
+        const viewerConnections = new Map();
+        let screenStream = null;
+        let rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        fetchRtcConfig().then(cfg => { rtcConfig = cfg; });
+
+        const broadcasterName = document.getElementById('broadcasterName');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const preview = document.getElementById('preview');
+        const viewersList = document.getElementById('viewersList');
+        const sourceType = document.getElementById('sourceType');
+        const deviceSelectors = document.getElementById('deviceSelectors');
+        const videoDeviceSelect = document.getElementById('videoDevice');
+        const audioDeviceSelect = document.getElementById('audioDevice');
+        const includeAudio = document.getElementById('includeAudio');
+
+        // Show/hide device selectors based on source type
+        sourceType.addEventListener('change', async () => {
+            if (sourceType.value === 'device') {
+                deviceSelectors.style.display = 'block';
+                await enumerateDevices();
+            } else {
+                deviceSelectors.style.display = 'none';
+            }
+        });
+
+        // Enumerate available media devices
+        async function enumerateDevices() {
+            try {
+                // Request temporary access to trigger permission prompt so labels are visible
+                const tempStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }).catch(() => null);
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+
+                videoDeviceSelect.innerHTML = '';
+                audioDeviceSelect.innerHTML = '<option value="none">No Audio</option>';
+
+                devices.filter(d => d.kind === 'videoinput').forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.deviceId;
+                    opt.textContent = d.label || `Camera ${videoDeviceSelect.length + 1}`;
+                    videoDeviceSelect.appendChild(opt);
+                });
+
+                devices.filter(d => d.kind === 'audioinput').forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.deviceId;
+                    opt.textContent = d.label || `Microphone ${audioDeviceSelect.length}`;
+                    audioDeviceSelect.appendChild(opt);
+                });
+
+                // Release temporary stream
+                if (tempStream) tempStream.getTracks().forEach(t => t.stop());
+
+                if (videoDeviceSelect.options.length === 0) {
+                    showStatus('No video capture devices found', 'error');
+                }
+            } catch (err) {
+                console.error('Error enumerating devices:', err);
+                showStatus('Could not list devices: ' + err.message, 'error');
+            }
+        }
+
+        // Connect to signaling server (but don't register yet)
+        function connectToServer() {
+            return new Promise((resolve, reject) => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    resolve();
+                    return;
+                }
+
+                const wsUrl = getWebSocketUrl();
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    console.log('Connected to signaling server');
+                    resolve();
+                };
+
+                ws.onmessage = (event) => {
+                    handleSignalingMessage(JSON.parse(event.data));
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    showStatus('Connection error. Check server is running.', 'error');
+                    reject(error);
+                };
+
+                ws.onclose = () => {
+                    showStatus('Disconnected from server', 'error');
+                    document.getElementById('broadcastSection').style.display = 'none';
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                };
+            });
+        }
+
+        // Handle messages from signaling server
+        function handleSignalingMessage(message) {
+            console.log('Received message:', message.type);
+
+            switch (message.type) {
+                case 'registered':
+                    myId = message.id;
+                    showStatus(`Broadcasting as "${message.name}"`, 'success');
+                    document.getElementById('broadcastSection').style.display = 'block';
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    break;
+                case 'offer':
+                    handleViewerOffer(message.from, message.offer);
+                    break;
+                case 'ice-candidate':
+                    handleViewerIceCandidate(message.from, message.candidate);
+                    break;
+            }
+        }
+
+        // Handle offer from a viewer
+        async function handleViewerOffer(viewerId, offer) {
+            console.log('Received offer from viewer:', viewerId);
+            try {
+                const pc = new RTCPeerConnection(rtcConfig);
+                viewerConnections.set(viewerId, pc);
+
+                if (screenStream) {
+                    screenStream.getTracks().forEach(track => pc.addTrack(track, screenStream));
+                }
+
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        ws.send(JSON.stringify({
+                            type: 'ice-candidate',
+                            to: viewerId,
+                            candidate: event.candidate
+                        }));
+                    }
+                };
+
+                pc.onconnectionstatechange = () => {
+                    updateViewersList();
+                    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                        viewerConnections.delete(viewerId);
+                        updateViewersList();
+                    }
+                };
+
+                await pc.setRemoteDescription(offer);
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+
+                ws.send(JSON.stringify({
+                    type: 'answer',
+                    to: viewerId,
+                    answer: pc.localDescription
+                }));
+                updateViewersList();
+            } catch (err) {
+                console.error('Error handling viewer offer:', err);
+            }
+        }
+
+        async function handleViewerIceCandidate(viewerId, candidate) {
+            const pc = viewerConnections.get(viewerId);
+            if (pc) {
+                try {
+                    await pc.addIceCandidate(candidate);
+                } catch (err) { console.error(err); }
+            }
+        }
+
+        startBtn.addEventListener('click', async () => {
+            const name = broadcasterName.value.trim() || 'Unnamed Broadcaster';
+            try {
+                showStatus('Connecting to server...', 'info');
+                await connectToServer();
+
+                const wantAudio = includeAudio.checked;
+
+                if (sourceType.value === 'device') {
+                    // Capture device mode (ATEM Mini Pro, USB capture cards, webcams)
+                    const videoId = videoDeviceSelect.value;
+                    const audioId = audioDeviceSelect.value;
+
+                    const constraints = {
+                        video: videoId ? { deviceId: { exact: videoId } } : true,
+                        audio: audioId !== 'none' && wantAudio ? { deviceId: { exact: audioId } } : false,
+                    };
+
+                    try {
+                        screenStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    } catch (exactErr) {
+                        // Fallback: retry with ideal instead of exact (some devices are picky)
+                        console.warn('Exact device constraint failed, retrying with ideal:', exactErr);
+                        constraints.video = videoId ? { deviceId: { ideal: videoId } } : true;
+                        if (audioId !== 'none' && wantAudio) {
+                            constraints.audio = { deviceId: { ideal: audioId } };
+                        }
+                        screenStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    }
+                } else {
+                    // Screen share mode
+                    screenStream = await navigator.mediaDevices.getDisplayMedia({
+                        video: { cursor: 'always' },
+                        audio: wantAudio,
+                    });
+                }
+
+                const vTrack = screenStream.getVideoTracks()[0];
+                console.log('Video track:', vTrack.label, 'state:', vTrack.readyState, 'settings:', JSON.stringify(vTrack.getSettings()));
+                vTrack.onended = () => stopBroadcasting();
+
+                preview.srcObject = screenStream;
+                preview.muted = true;
+                // Force play in case autoplay is blocked
+                preview.play().catch(e => console.warn('Preview autoplay blocked:', e));
+                document.getElementById('previewSection').style.display = 'block';
+                document.getElementById('viewersSection').style.display = 'block';
+
+                ws.send(JSON.stringify({
+                    type: 'register-broadcaster',
+                    name: name
+                }));
+            } catch (err) {
+                console.error(err);
+                if (err.name === 'NotAllowedError') {
+                    showStatus('Screen sharing cancelled', 'info');
+                } else if (err.name === 'NotFoundError') {
+                    showStatus('Selected device not found. Is it connected?', 'error');
+                } else if (err.name === 'NotReadableError') {
+                    showStatus('Device is in use by another application', 'error');
+                } else {
+                    showStatus('Error starting broadcast: ' + err.message, 'error');
+                }
+            }
+        });
+
+        function stopBroadcasting() {
+            if (screenStream) {
+                screenStream.getTracks().forEach(track => track.stop());
+                screenStream = null;
+            }
+            viewerConnections.forEach((pc) => pc.close());
+            viewerConnections.clear();
+
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            preview.srcObject = null;
+            document.getElementById('broadcastSection').style.display = 'none';
+
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            showStatus('Broadcasting stopped', 'info');
+            updateViewersList();
+        }
+
+        stopBtn.addEventListener('click', stopBroadcasting);
+
+        function updateViewersList() {
+            const connectedViewers = Array.from(viewerConnections.entries())
+                .filter(([id, pc]) => pc.connectionState === 'connected' || pc.connectionState === 'connecting');
+
+            if (connectedViewers.length === 0) {
+                viewersList.innerHTML = '<p style="color: #999;">No viewers connected yet</p>';
+            } else {
+                viewersList.innerHTML = connectedViewers.map(([id, pc]) => `
+                    <div class="viewer-item">
+                        <span>👀 Viewer ${id.substring(0, 8)}...</span>
+                        <span style="color: #4CAF50;">● Connected</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (screenStream) screenStream.getTracks().forEach(track => track.stop());
+            viewerConnections.forEach(pc => pc.close());
+            if (ws) ws.close();
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScreenShare</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .links {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 30px 0;
+        }
+
+        .links a {
+            text-decoration: none;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-block;
+            min-width: 150px;
+        }
+
+        .links a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .broadcaster {
+            background-color: var(--primary);
+        }
+
+        .broadcaster:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .viewer {
+            background-color: var(--secondary);
+        }
+
+        .viewer:hover {
+            background-color: var(--secondary-hover);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>📡 ScreenShare</h1>
+        <div class="links">
+            <a href="/broadcaster" class="broadcaster">🖥️ Start Broadcasting</a>
+            <a href="/viewer" class="viewer">👁️ Join as Viewer</a>
+        </div>
+        <p>
+            Share your screen locally over the network.<br>
+            <strong>Broadcaster:</strong> Share your screen.<br>
+            <strong>Viewer:</strong> Watch a shared screen.
+        </p>
+        <div style="margin-top: 20px;">
+            <img src="/qr" alt="Scan to view" style="max-width: 200px; border-radius: 8px;">
+            <p style="color: #888; font-size: 14px; margin-top: 8px;">Scan to open viewer on your phone</p>
+        </div>
+    </div>
+</body>
+
+</html>

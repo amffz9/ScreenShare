@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Viewer</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>📺 Screen Viewer</h1>
+        <p>Connect to the signaling server and view available screen shares.</p>
+
+        <div class="step viewer-step">
+            <h3>Step 1: Connect to Signaling Server</h3>
+            <div id="status" class="status info" style="display:block;">Connecting to server...</div>
+            <br>
+            <button id="castBtn" class="btn-cast" style="display: none;">📲 Cast to TV</button>
+        </div>
+
+        <div id="broadcasterSection" style="display:none;">
+            <div class="step viewer-step">
+                <h3>Step 2: Select a Broadcaster</h3>
+                <button id="refreshBtn" class="btn-secondary">🔄 Refresh List</button>
+                <div id="broadcasterList" class="broadcaster-list">
+                    <p style="color: #999; text-align: center;">Loading...</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="videoSection" style="display:none;">
+            <div class="video-container">
+                <h3>Screen Share:</h3>
+                <video id="remoteVideo" autoplay playsinline controls></video>
+                <br>
+                <button id="fullscreenBtn" class="btn-cast">Toggle Fullscreen</button>
+                <button id="disconnectBtn" class="btn-secondary">Disconnect</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/common.js"></script>
+    <script>
+        // Setup Cast
+        setupCastButton('castBtn', window.location.href);
+
+        // Core App Logic
+        let ws = null;
+        let myId = null;
+        let peerConnection = null;
+        let currentBroadcasterId = null;
+        let shouldReconnect = true;
+        let reconnectTimer = null;
+        let rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        fetchRtcConfig().then(cfg => { rtcConfig = cfg; });
+
+        const refreshBtn = document.getElementById('refreshBtn');
+        const broadcasterList = document.getElementById('broadcasterList');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const broadcasterSection = document.getElementById('broadcasterSection');
+
+        // Connect to signaling server
+        function connectToServer() {
+            try {
+                const wsUrl = getWebSocketUrl();
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    showStatus('Connected to server! Registering as viewer...', 'success');
+                    ws.send(JSON.stringify({ type: 'register-viewer' }));
+                };
+
+                ws.onmessage = (event) => {
+                    handleSignalingMessage(JSON.parse(event.data));
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    showStatus('Connection error. Check server is running.', 'error');
+                };
+
+                ws.onclose = () => {
+                    showStatus('Disconnected from server. Retrying in 3s...', 'error');
+                    broadcasterSection.style.display = 'none';
+                    if (shouldReconnect && !reconnectTimer) {
+                        reconnectTimer = setTimeout(() => {
+                            reconnectTimer = null;
+                            connectToServer();
+                        }, 3000);
+                    }
+                };
+            } catch (err) {
+                showStatus('Error connecting: ' + err.message, 'error');
+            }
+        }
+
+        // Start connection on load
+        connectToServer();
+
+        // Handle messages from signaling server
+        function handleSignalingMessage(message) {
+            console.log('Received message:', message.type);
+
+            switch (message.type) {
+                case 'registered':
+                    myId = message.id;
+                    showStatus('Registered! Fetching broadcasters...', 'success');
+                    broadcasterSection.style.display = 'block';
+                    ws.send(JSON.stringify({ type: 'get-broadcasters' }));
+                    break;
+                case 'broadcaster-list':
+                    displayBroadcasters(message.broadcasters);
+                    break;
+                case 'broadcaster-joined':
+                    ws.send(JSON.stringify({ type: 'get-broadcasters' }));
+                    break;
+                case 'broadcaster-left':
+                    ws.send(JSON.stringify({ type: 'get-broadcasters' }));
+                    if (currentBroadcasterId === message.id) {
+                        disconnect();
+                        showStatus('Your broadcaster disconnected', 'error');
+                    }
+                    break;
+                case 'answer':
+                    handleBroadcasterAnswer(message.answer);
+                    break;
+                case 'ice-candidate':
+                    handleBroadcasterIceCandidate(message.candidate);
+                    break;
+            }
+        }
+
+        // Display list of broadcasters
+        function displayBroadcasters(broadcasters) {
+            if (broadcasters.length === 0) {
+                broadcasterList.innerHTML = '<p style="color: #999; text-align: center;">No active broadcasters</p>';
+                return;
+            }
+
+            broadcasterList.innerHTML = broadcasters.map(b => `
+                <div class="broadcaster-item" data-id="${escapeHtml(b.id)}">
+                    <div>
+                        <div class="broadcaster-name">📡 ${escapeHtml(b.name)}</div>
+                        <div class="broadcaster-status">● Available</div>
+                    </div>
+                    <button class="btn-secondary" onclick="connectToBroadcaster('${escapeHtml(b.id)}')">Connect</button>
+                </div>
+            `).join('');
+        }
+
+        // Connect to a specific broadcaster
+        window.connectToBroadcaster = async function (broadcasterId) {
+            if (peerConnection) disconnect();
+
+            try {
+                currentBroadcasterId = broadcasterId;
+                showStatus('Connecting to broadcaster...', 'info');
+
+                peerConnection = new RTCPeerConnection(rtcConfig);
+                peerConnection.addTransceiver('video', { direction: 'recvonly' });
+                peerConnection.addTransceiver('audio', { direction: 'recvonly' });
+
+                peerConnection.ontrack = (event) => {
+                    console.log('Received remote track:', event.track.kind);
+                    remoteVideo.srcObject = event.streams[0];
+                    document.getElementById('videoSection').style.display = 'block';
+                    const hasAudio = event.streams[0].getAudioTracks().length > 0;
+                    showStatus('Connected! Receiving video' + (hasAudio ? ' and audio' : '') + '.', 'success');
+                };
+
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        ws.send(JSON.stringify({
+                            type: 'ice-candidate',
+                            to: broadcasterId,
+                            candidate: event.candidate
+                        }));
+                    }
+                };
+
+                peerConnection.onconnectionstatechange = () => {
+                    console.log('Connection state:', peerConnection.connectionState);
+                    if (peerConnection.connectionState === 'disconnected' ||
+                        peerConnection.connectionState === 'failed') {
+                        showStatus('Connection lost', 'error');
+                        disconnect();
+                    }
+                };
+
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+
+                ws.send(JSON.stringify({
+                    type: 'offer',
+                    to: broadcasterId,
+                    offer: peerConnection.localDescription
+                }));
+
+                console.log('Sent offer to broadcaster');
+            } catch (err) {
+                showStatus('Error connecting: ' + err.message, 'error');
+                console.error(err);
+            }
+        };
+
+        async function handleBroadcasterAnswer(answer) {
+            if (peerConnection) {
+                try {
+                    await peerConnection.setRemoteDescription(answer);
+                    console.log('Set remote description from broadcaster');
+                } catch (err) {
+                    console.error('Error setting remote description:', err);
+                }
+            }
+        }
+
+        async function handleBroadcasterIceCandidate(candidate) {
+            if (peerConnection) {
+                try {
+                    await peerConnection.addIceCandidate(candidate);
+                } catch (err) {
+                    console.error('Error adding ICE candidate:', err);
+                }
+            }
+        }
+
+        refreshBtn.addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'get-broadcasters' }));
+                showStatus('Refreshing...', 'info');
+            } else {
+                connectToServer();
+            }
+        });
+
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                remoteVideo.requestFullscreen().catch(err => {
+                    console.error('Error entering fullscreen:', err);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        });
+
+        disconnectBtn.addEventListener('click', disconnect);
+
+        function disconnect() {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            remoteVideo.srcObject = null;
+            document.getElementById('videoSection').style.display = 'none';
+            currentBroadcasterId = null;
+            showStatus('Disconnected', 'info');
+        }
+
+        window.addEventListener('beforeunload', () => {
+            shouldReconnect = false;
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            if (peerConnection) peerConnection.close();
+            if (ws) ws.close();
+        });
+    </script>
+</body>
+
+</html>
