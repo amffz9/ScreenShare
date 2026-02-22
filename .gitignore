@@ -6,6 +6,7 @@ dist/
 *.out
 *.test
 *.prof
+.go1.24/
 
 # Editor
 .idea/

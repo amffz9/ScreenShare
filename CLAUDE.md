@@ -6,7 +6,7 @@ A self-contained WebRTC screen-sharing application. A Go backend serves as a sig
 
 ## Tech Stack
 
-- **Backend:** Go 1.22, single `main.go`, gorilla/websocket
+- **Backend:** Go (latest for Windows/Linux, Go 1.24 for macOS), single `main.go`, gorilla/websocket
 - **Frontend:** Vanilla HTML/CSS/JS (no framework, no bundler)
 - **Build:** Makefile, cross-compiled to Windows/Linux/macOS
 - **Embedding:** Static files in `public/` are embedded into the binary via `//go:embed`
@@ -62,3 +62,4 @@ make icon            # Generate Windows icon resources
 - After editing files in `public/`, you must rebuild the binary for changes to take effect in the embedded FS. During development, use `make run` (go run) which re-embeds on each run.
 - The `stunServer` value in config.json must use the `stun:` URI scheme (e.g., `stun:stun.l.google.com:19302`).
 - WebSocket messages use `json.RawMessage` for offer/answer/candidate fields to relay them without re-serialization.
+- macOS builds use Go 1.24 (in `.go1.24/`) to support macOS 11 Big Sur. Go 1.25+ dropped Big Sur support. Download Go 1.24 from https://go.dev/dl/ and extract to `.go1.24/go/`.
