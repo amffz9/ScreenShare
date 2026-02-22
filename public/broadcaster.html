@@ -4,64 +4,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Screen Broadcaster</title>
+    <title>Broadcast — ScreenShare</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
-    <div class="container">
-        <h1>📡 Screen Broadcaster</h1>
-        <p>Share your screen or a capture device with viewers.</p>
+    <div class="page">
+        <!-- Navbar -->
+        <nav class="navbar">
+            <a href="/">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                Home
+            </a>
+            <span class="navbar-title">Broadcast</span>
+            <span id="navStatus" class="status-dot status-dot--offline"></span>
+        </nav>
 
-        <div class="step">
-            <h3>Step 1: Setup</h3>
-            <p><strong>Server IP:</strong> <span id="serverIp">Detecting...</span></p>
+        <div class="container">
+            <!-- Status -->
+            <div id="status" class="status-bar" role="status" aria-live="polite"></div>
 
-            <input type="text" id="broadcasterName" placeholder="Enter your name" value="My Screen">
+            <!-- Setup Section -->
+            <div id="setupSection" class="section">
+                <div class="card">
+                    <div class="form-group">
+                        <label class="form-label" for="broadcasterName">Display Name</label>
+                        <input type="text" id="broadcasterName" class="form-input" placeholder="My Screen" value="My Screen">
+                    </div>
 
-            <div style="margin: 10px 0;">
-                <label><strong>Source:</strong></label>
-                <select id="sourceType" style="padding: 8px; font-size: 14px; border-radius: 4px; border: 1px solid #ddd; margin-left: 5px;">
-                    <option value="screen">Screen Share</option>
-                    <option value="device">Capture Device (HDMI/USB)</option>
-                </select>
-            </div>
+                    <div class="form-group">
+                        <label class="form-label" for="sourceType">Source</label>
+                        <select id="sourceType" class="form-select">
+                            <option value="screen">Screen Share</option>
+                            <option value="device">Capture Device (HDMI/USB)</option>
+                        </select>
+                    </div>
 
-            <div id="deviceSelectors" style="display: none; margin: 10px 0; padding: 10px; background: #f0f0f0; border-radius: 4px;">
-                <label><strong>Video Device:</strong></label>
-                <select id="videoDevice" style="padding: 8px; font-size: 14px; border-radius: 4px; border: 1px solid #ddd; width: 100%; margin: 5px 0;"></select>
-                <label><strong>Audio Device:</strong></label>
-                <select id="audioDevice" style="padding: 8px; font-size: 14px; border-radius: 4px; border: 1px solid #ddd; width: 100%; margin: 5px 0;">
-                    <option value="none">No Audio</option>
-                </select>
-            </div>
+                    <div id="deviceSelectors" class="form-panel hidden">
+                        <div class="form-group">
+                            <label class="form-label" for="videoDevice">Video Device</label>
+                            <select id="videoDevice" class="form-select"></select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="audioDevice">Audio Device</label>
+                            <select id="audioDevice" class="form-select">
+                                <option value="none">No Audio</option>
+                            </select>
+                        </div>
+                    </div>
 
-            <div style="margin: 10px 0;">
-                <label>
-                    <input type="checkbox" id="includeAudio" checked>
-                    Include audio (when available)
-                </label>
-            </div>
+                    <div class="form-group">
+                        <label class="form-check">
+                            <input type="checkbox" id="includeAudio" checked>
+                            Include audio (when available)
+                        </label>
+                    </div>
 
-            <button id="startBtn" class="btn-primary">Start Broadcasting</button>
-            <button id="castBtn" class="btn-cast" style="display: none;">📲 Cast Viewer to TV</button>
-            <button id="stopBtn" class="btn-primary" disabled>Stop Broadcasting</button>
-            <div id="status" class="status info"></div>
-        </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <p class="form-hint">
+                            <strong>Server:</strong> <span id="serverIp">Detecting...</span>
+                        </p>
+                    </div>
+                </div>
 
-        <div id="broadcastSection" style="display:none;">
-            <div id="previewSection" style="display:none;">
-                <div class="preview">
-                    <h3>Your Screen Preview:</h3>
-                    <video id="preview" autoplay muted playsinline></video>
+                <!-- Actions -->
+                <div class="mt-md btn-group">
+                    <button id="startBtn" class="btn btn-primary btn-lg btn-block">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+                        Start Broadcasting
+                    </button>
+                </div>
+
+                <div class="mt-sm btn-group">
+                    <button id="castBtn" class="btn btn-accent btn-block hidden">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><line x1="2" y1="20" x2="2.01" y2="20"/></svg>
+                        Cast Viewer to TV
+                    </button>
                 </div>
             </div>
 
-            <div id="viewersSection" style="display:none;">
-                <h3>Connected Viewers:</h3>
-                <div id="viewersList" class="viewer-list">
-                    <p style="color: #999;">No viewers connected yet</p>
+            <!-- Live Section (hidden until broadcasting) -->
+            <div id="broadcastSection" class="hidden">
+                <!-- Stop button -->
+                <div class="section">
+                    <button id="stopBtn" class="btn btn-danger btn-block">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                        Stop Broadcasting
+                    </button>
+                </div>
+
+                <!-- Preview -->
+                <div id="previewSection" class="section hidden">
+                    <h3 style="margin-bottom: var(--spacing-sm);">Preview</h3>
+                    <div class="video-wrapper">
+                        <video id="preview" autoplay muted playsinline></video>
+                    </div>
+                </div>
+
+                <!-- Viewers -->
+                <div id="viewersSection" class="section hidden">
+                    <div class="section-header">
+                        <h3>Viewers</h3>
+                        <span id="viewerCount" class="text-sm text-muted">0 connected</span>
+                    </div>
+                    <div id="viewersList" class="viewers-grid">
+                        <span class="text-sm text-muted">No viewers yet</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -94,21 +146,25 @@
         const videoDeviceSelect = document.getElementById('videoDevice');
         const audioDeviceSelect = document.getElementById('audioDevice');
         const includeAudio = document.getElementById('includeAudio');
+        const navStatus = document.getElementById('navStatus');
+
+        function setNavStatus(state) {
+            navStatus.className = 'status-dot status-dot--' + state;
+        }
 
         // Show/hide device selectors based on source type
         sourceType.addEventListener('change', async () => {
             if (sourceType.value === 'device') {
-                deviceSelectors.style.display = 'block';
+                deviceSelectors.classList.remove('hidden');
                 await enumerateDevices();
             } else {
-                deviceSelectors.style.display = 'none';
+                deviceSelectors.classList.add('hidden');
             }
         });
 
         // Enumerate available media devices
         async function enumerateDevices() {
             try {
-                // Request temporary access to trigger permission prompt so labels are visible
                 const tempStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }).catch(() => null);
 
                 const devices = await navigator.mediaDevices.enumerateDevices();
@@ -130,7 +186,6 @@
                     audioDeviceSelect.appendChild(opt);
                 });
 
-                // Release temporary stream
                 if (tempStream) tempStream.getTracks().forEach(t => t.stop());
 
                 if (videoDeviceSelect.options.length === 0) {
@@ -142,7 +197,7 @@
             }
         }
 
-        // Connect to signaling server (but don't register yet)
+        // Connect to signaling server
         function connectToServer() {
             return new Promise((resolve, reject) => {
                 if (ws && ws.readyState === WebSocket.OPEN) {
@@ -165,14 +220,16 @@
                 ws.onerror = (error) => {
                     console.error('WebSocket error:', error);
                     showStatus('Connection error. Check server is running.', 'error');
+                    setNavStatus('offline');
                     reject(error);
                 };
 
                 ws.onclose = () => {
                     showStatus('Disconnected from server', 'error');
-                    document.getElementById('broadcastSection').style.display = 'none';
+                    setNavStatus('offline');
+                    document.getElementById('broadcastSection').classList.add('hidden');
+                    document.getElementById('setupSection').classList.remove('hidden');
                     startBtn.disabled = false;
-                    stopBtn.disabled = true;
                 };
             });
         }
@@ -185,9 +242,9 @@
                 case 'registered':
                     myId = message.id;
                     showStatus(`Broadcasting as "${message.name}"`, 'success');
-                    document.getElementById('broadcastSection').style.display = 'block';
-                    startBtn.disabled = true;
-                    stopBtn.disabled = false;
+                    setNavStatus('live');
+                    document.getElementById('broadcastSection').classList.remove('hidden');
+                    document.getElementById('setupSection').classList.add('hidden');
                     break;
                 case 'offer':
                     handleViewerOffer(message.from, message.offer);
@@ -255,12 +312,12 @@
             const name = broadcasterName.value.trim() || 'Unnamed Broadcaster';
             try {
                 showStatus('Connecting to server...', 'info');
+                setNavStatus('connecting');
                 await connectToServer();
 
                 const wantAudio = includeAudio.checked;
 
                 if (sourceType.value === 'device') {
-                    // Capture device mode (ATEM Mini Pro, USB capture cards, webcams)
                     const videoId = videoDeviceSelect.value;
                     const audioId = audioDeviceSelect.value;
 
@@ -272,7 +329,6 @@
                     try {
                         screenStream = await navigator.mediaDevices.getUserMedia(constraints);
                     } catch (exactErr) {
-                        // Fallback: retry with ideal instead of exact (some devices are picky)
                         console.warn('Exact device constraint failed, retrying with ideal:', exactErr);
                         constraints.video = videoId ? { deviceId: { ideal: videoId } } : true;
                         if (audioId !== 'none' && wantAudio) {
@@ -281,7 +337,6 @@
                         screenStream = await navigator.mediaDevices.getUserMedia(constraints);
                     }
                 } else {
-                    // Screen share mode
                     screenStream = await navigator.mediaDevices.getDisplayMedia({
                         video: { cursor: 'always' },
                         audio: wantAudio,
@@ -294,10 +349,9 @@
 
                 preview.srcObject = screenStream;
                 preview.muted = true;
-                // Force play in case autoplay is blocked
                 preview.play().catch(e => console.warn('Preview autoplay blocked:', e));
-                document.getElementById('previewSection').style.display = 'block';
-                document.getElementById('viewersSection').style.display = 'block';
+                document.getElementById('previewSection').classList.remove('hidden');
+                document.getElementById('viewersSection').classList.remove('hidden');
 
                 ws.send(JSON.stringify({
                     type: 'register-broadcaster',
@@ -305,6 +359,7 @@
                 }));
             } catch (err) {
                 console.error(err);
+                setNavStatus('offline');
                 if (err.name === 'NotAllowedError') {
                     showStatus('Screen sharing cancelled', 'info');
                 } else if (err.name === 'NotFoundError') {
@@ -330,10 +385,13 @@
                 ws = null;
             }
             preview.srcObject = null;
-            document.getElementById('broadcastSection').style.display = 'none';
+            document.getElementById('broadcastSection').classList.add('hidden');
+            document.getElementById('setupSection').classList.remove('hidden');
+            document.getElementById('previewSection').classList.add('hidden');
+            document.getElementById('viewersSection').classList.add('hidden');
 
             startBtn.disabled = false;
-            stopBtn.disabled = true;
+            setNavStatus('offline');
             showStatus('Broadcasting stopped', 'info');
             updateViewersList();
         }
@@ -344,14 +402,17 @@
             const connectedViewers = Array.from(viewerConnections.entries())
                 .filter(([id, pc]) => pc.connectionState === 'connected' || pc.connectionState === 'connecting');
 
+            const countEl = document.getElementById('viewerCount');
+            countEl.textContent = connectedViewers.length + ' connected';
+
             if (connectedViewers.length === 0) {
-                viewersList.innerHTML = '<p style="color: #999;">No viewers connected yet</p>';
+                viewersList.innerHTML = '<span class="text-sm text-muted">No viewers yet</span>';
             } else {
                 viewersList.innerHTML = connectedViewers.map(([id, pc]) => `
-                    <div class="viewer-item">
-                        <span>👀 Viewer ${id.substring(0, 8)}...</span>
-                        <span style="color: #4CAF50;">● Connected</span>
-                    </div>
+                    <span class="viewer-badge">
+                        <span class="status-dot status-dot--live"></span>
+                        Viewer ${id.substring(0, 6)}
+                    </span>
                 `).join('');
             }
         }

@@ -4,40 +4,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Screen Viewer</title>
+    <title>Viewer — ScreenShare</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
-    <div class="container">
-        <h1>📺 Screen Viewer</h1>
-        <p>Connect to the signaling server and view available screen shares.</p>
+    <div class="page">
+        <!-- Navbar -->
+        <nav class="navbar">
+            <a href="/">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                Home
+            </a>
+            <span class="navbar-title">Viewer</span>
+            <span id="navStatus" class="status-dot status-dot--connecting"></span>
+        </nav>
 
-        <div class="step viewer-step">
-            <h3>Step 1: Connect to Signaling Server</h3>
-            <div id="status" class="status info" style="display:block;">Connecting to server...</div>
-            <br>
-            <button id="castBtn" class="btn-cast" style="display: none;">📲 Cast to TV</button>
-        </div>
+        <div class="container">
+            <!-- Status -->
+            <div id="status" class="status-bar info" role="status" aria-live="polite">Connecting to server...</div>
 
-        <div id="broadcasterSection" style="display:none;">
-            <div class="step viewer-step">
-                <h3>Step 2: Select a Broadcaster</h3>
-                <button id="refreshBtn" class="btn-secondary">🔄 Refresh List</button>
-                <div id="broadcasterList" class="broadcaster-list">
-                    <p style="color: #999; text-align: center;">Loading...</p>
+            <!-- Broadcaster List -->
+            <div id="broadcasterSection" class="section hidden">
+                <div class="section-header">
+                    <h3>Available Broadcasts</h3>
+                    <button id="refreshBtn" class="btn btn-ghost btn-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        Refresh
+                    </button>
+                </div>
+                <div id="broadcasterList">
+                    <div class="empty-state">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        <p>Loading...</p>
+                    </div>
+                </div>
+
+                <div class="mt-md">
+                    <button id="castBtn" class="btn btn-accent btn-block hidden">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><line x1="2" y1="20" x2="2.01" y2="20"/></svg>
+                        Cast to TV
+                    </button>
                 </div>
             </div>
-        </div>
 
-        <div id="videoSection" style="display:none;">
-            <div class="video-container">
-                <h3>Screen Share:</h3>
-                <video id="remoteVideo" autoplay playsinline controls></video>
-                <br>
-                <button id="fullscreenBtn" class="btn-cast">Toggle Fullscreen</button>
-                <button id="disconnectBtn" class="btn-secondary">Disconnect</button>
+            <!-- Video Section -->
+            <div id="videoSection" class="section hidden">
+                <div class="video-wrapper">
+                    <video id="remoteVideo" autoplay playsinline></video>
+                </div>
+                <div class="video-controls mt-sm">
+                    <button id="fullscreenBtn" class="btn btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                        Fullscreen
+                    </button>
+                    <button id="disconnectBtn" class="btn btn-danger">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        Disconnect
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -63,6 +92,11 @@
         const fullscreenBtn = document.getElementById('fullscreenBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
         const broadcasterSection = document.getElementById('broadcasterSection');
+        const navStatus = document.getElementById('navStatus');
+
+        function setNavStatus(state) {
+            navStatus.className = 'status-dot status-dot--' + state;
+        }
 
         // Connect to signaling server
         function connectToServer() {
@@ -71,7 +105,8 @@
                 ws = new WebSocket(wsUrl);
 
                 ws.onopen = () => {
-                    showStatus('Connected to server! Registering as viewer...', 'success');
+                    showStatus('Connected! Registering...', 'success');
+                    setNavStatus('live');
                     ws.send(JSON.stringify({ type: 'register-viewer' }));
                 };
 
@@ -82,11 +117,13 @@
                 ws.onerror = (error) => {
                     console.error('WebSocket error:', error);
                     showStatus('Connection error. Check server is running.', 'error');
+                    setNavStatus('offline');
                 };
 
                 ws.onclose = () => {
-                    showStatus('Disconnected from server. Retrying in 3s...', 'error');
-                    broadcasterSection.style.display = 'none';
+                    showStatus('Disconnected. Retrying in 3s...', 'error');
+                    setNavStatus('connecting');
+                    broadcasterSection.classList.add('hidden');
                     if (shouldReconnect && !reconnectTimer) {
                         reconnectTimer = setTimeout(() => {
                             reconnectTimer = null;
@@ -109,8 +146,9 @@
             switch (message.type) {
                 case 'registered':
                     myId = message.id;
-                    showStatus('Registered! Fetching broadcasters...', 'success');
-                    broadcasterSection.style.display = 'block';
+                    showStatus('Connected — select a broadcast to watch', 'success');
+                    setNavStatus('live');
+                    broadcasterSection.classList.remove('hidden');
                     ws.send(JSON.stringify({ type: 'get-broadcasters' }));
                     break;
                 case 'broadcaster-list':
@@ -123,7 +161,7 @@
                     ws.send(JSON.stringify({ type: 'get-broadcasters' }));
                     if (currentBroadcasterId === message.id) {
                         disconnect();
-                        showStatus('Your broadcaster disconnected', 'error');
+                        showStatus('Broadcaster disconnected', 'error');
                     }
                     break;
                 case 'answer':
@@ -138,17 +176,27 @@
         // Display list of broadcasters
         function displayBroadcasters(broadcasters) {
             if (broadcasters.length === 0) {
-                broadcasterList.innerHTML = '<p style="color: #999; text-align: center;">No active broadcasters</p>';
+                broadcasterList.innerHTML = `
+                    <div class="empty-state">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        <p>No active broadcasts</p>
+                    </div>`;
                 return;
             }
 
             broadcasterList.innerHTML = broadcasters.map(b => `
-                <div class="broadcaster-item" data-id="${escapeHtml(b.id)}">
-                    <div>
-                        <div class="broadcaster-name">📡 ${escapeHtml(b.name)}</div>
-                        <div class="broadcaster-status">● Available</div>
+                <div class="broadcaster-card" onclick="connectToBroadcaster('${escapeHtml(b.id)}')" data-id="${escapeHtml(b.id)}">
+                    <div class="icon-circle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.4"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.4"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>
                     </div>
-                    <button class="btn-secondary" onclick="connectToBroadcaster('${escapeHtml(b.id)}')">Connect</button>
+                    <div class="broadcaster-card-info">
+                        <div class="broadcaster-card-name">${escapeHtml(b.name)}</div>
+                        <div class="broadcaster-card-status">
+                            <span class="status-dot status-dot--live"></span>
+                            Live
+                        </div>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                 </div>
             `).join('');
         }
@@ -159,7 +207,8 @@
 
             try {
                 currentBroadcasterId = broadcasterId;
-                showStatus('Connecting to broadcaster...', 'info');
+                showStatus('Connecting to broadcast...', 'info');
+                setNavStatus('connecting');
 
                 peerConnection = new RTCPeerConnection(rtcConfig);
                 peerConnection.addTransceiver('video', { direction: 'recvonly' });
@@ -168,9 +217,11 @@
                 peerConnection.ontrack = (event) => {
                     console.log('Received remote track:', event.track.kind);
                     remoteVideo.srcObject = event.streams[0];
-                    document.getElementById('videoSection').style.display = 'block';
+                    document.getElementById('videoSection').classList.remove('hidden');
+                    broadcasterSection.classList.add('hidden');
                     const hasAudio = event.streams[0].getAudioTracks().length > 0;
-                    showStatus('Connected! Receiving video' + (hasAudio ? ' and audio' : '') + '.', 'success');
+                    showStatus('Watching — ' + (hasAudio ? 'video + audio' : 'video only'), 'success');
+                    setNavStatus('live');
                 };
 
                 peerConnection.onicecandidate = (event) => {
@@ -188,6 +239,7 @@
                     if (peerConnection.connectionState === 'disconnected' ||
                         peerConnection.connectionState === 'failed') {
                         showStatus('Connection lost', 'error');
+                        setNavStatus('offline');
                         disconnect();
                     }
                 };
@@ -248,7 +300,10 @@
             }
         });
 
-        disconnectBtn.addEventListener('click', disconnect);
+        disconnectBtn.addEventListener('click', () => {
+            disconnect();
+            broadcasterSection.classList.remove('hidden');
+        });
 
         function disconnect() {
             if (peerConnection) {
@@ -256,9 +311,10 @@
                 peerConnection = null;
             }
             remoteVideo.srcObject = null;
-            document.getElementById('videoSection').style.display = 'none';
+            document.getElementById('videoSection').classList.add('hidden');
             currentBroadcasterId = null;
             showStatus('Disconnected', 'info');
+            setNavStatus('live');
         }
 
         window.addEventListener('beforeunload', () => {
