@@ -411,7 +411,7 @@
                 viewersList.innerHTML = connectedViewers.map(([id, pc]) => `
                     <span class="viewer-badge">
                         <span class="status-dot status-dot--live"></span>
-                        Viewer ${id.substring(0, 6)}
+                        Viewer ${escapeHtml(id.substring(0, 6))}
                     </span>
                 `).join('');
             }

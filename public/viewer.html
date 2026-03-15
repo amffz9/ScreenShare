@@ -216,12 +216,30 @@
 
                 peerConnection.ontrack = (event) => {
                     console.log('Received remote track:', event.track.kind);
-                    remoteVideo.srcObject = event.streams[0];
+                    if (!remoteVideo.srcObject) {
+                        remoteVideo.srcObject = event.streams[0];
+                    }
                     document.getElementById('videoSection').classList.remove('hidden');
                     broadcasterSection.classList.add('hidden');
-                    const hasAudio = event.streams[0].getAudioTracks().length > 0;
-                    showStatus('Watching — ' + (hasAudio ? 'video + audio' : 'video only'), 'success');
                     setNavStatus('live');
+                    // Ensure playback starts (autoplay may be blocked with audio)
+                    remoteVideo.play().catch(e => {
+                        console.warn('Autoplay blocked, trying muted:', e);
+                        remoteVideo.muted = true;
+                        remoteVideo.play().then(() => {
+                            showStatus('Watching (muted — click video to unmute)', 'success');
+                            remoteVideo.addEventListener('click', () => { remoteVideo.muted = false; }, { once: true });
+                        }).catch(e2 => console.error('Playback failed:', e2));
+                    });
+                    // Debounce status update to wait for all tracks to arrive
+                    clearTimeout(peerConnection._trackStatusTimer);
+                    peerConnection._trackStatusTimer = setTimeout(() => {
+                        const stream = remoteVideo.srcObject;
+                        if (stream && !remoteVideo.muted) {
+                            const hasAudio = stream.getAudioTracks().length > 0;
+                            showStatus('Watching — ' + (hasAudio ? 'video + audio' : 'video only'), 'success');
+                        }
+                    }, 200);
                 };
 
                 peerConnection.onicecandidate = (event) => {

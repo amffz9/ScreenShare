@@ -224,14 +224,23 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Start ping ticker
 	pingTicker := time.NewTicker(pingInterval)
-	defer pingTicker.Stop()
+	pingDone := make(chan struct{})
+	defer func() {
+		pingTicker.Stop()
+		close(pingDone)
+	}()
 
 	go func() {
-		for range pingTicker.C {
-			client.mu.Lock()
-			err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
-			client.mu.Unlock()
-			if err != nil {
+		for {
+			select {
+			case <-pingTicker.C:
+				client.mu.Lock()
+				err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
+				client.mu.Unlock()
+				if err != nil {
+					return
+				}
+			case <-pingDone:
 				return
 			}
 		}
@@ -306,6 +315,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			})
 
 		case "get-broadcasters":
+			if client.Type == "" {
+				log.Printf("Ignoring get-broadcasters from unregistered client %s", clientID)
+				break
+			}
 			mu.RLock()
 			list := make([]BroadcasterInfo, 0, len(broadcasters))
 			for _, b := range broadcasters {
@@ -320,6 +333,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			})
 
 		case "offer":
+			if client.Type == "" {
+				log.Printf("Ignoring offer from unregistered client %s", clientID)
+				break
+			}
 			mu.RLock()
 			target := clients[msg.To]
 			mu.RUnlock()
@@ -335,6 +352,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 
 		case "answer":
+			if client.Type == "" {
+				log.Printf("Ignoring answer from unregistered client %s", clientID)
+				break
+			}
 			mu.RLock()
 			target := clients[msg.To]
 			mu.RUnlock()
@@ -350,10 +371,15 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 
 		case "ice-candidate":
+			if client.Type == "" {
+				log.Printf("Ignoring ICE candidate from unregistered client %s", clientID)
+				break
+			}
 			mu.RLock()
 			target := clients[msg.To]
 			mu.RUnlock()
-			if target != nil {
+			// Validate: viewers send to broadcasters, broadcasters send to viewers
+			if target != nil && target.Type != client.Type {
 				sendJSON(target, map[string]interface{}{
 					"type":      "ice-candidate",
 					"from":      clientID,
