@@ -69,8 +69,22 @@ var (
 	clients      = make(map[string]*Client)
 	broadcasters = make(map[string]BroadcasterInfo)
 	mu           sync.RWMutex
-	upgrader     = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
+	upgrader = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true // Non-browser clients (e.g. curl) don't send Origin
+			}
+			// Allow if the Origin host matches the request Host
+			host := r.Host
+			if host == "" {
+				host = r.URL.Host
+			}
+			// Strip port from origin for comparison: "http://192.168.1.5:8080" -> "192.168.1.5:8080"
+			originHost := strings.TrimPrefix(origin, "http://")
+			originHost = strings.TrimPrefix(originHost, "https://")
+			return originHost == host
+		},
 	}
 )
 
@@ -398,6 +412,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 func sendJSON(c *Client, v interface{}) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	if err := c.Conn.WriteJSON(v); err != nil {
 		log.Printf("Write error to %s: %v", c.ID, err)
 	}
@@ -406,11 +421,16 @@ func sendJSON(c *Client, v interface{}) {
 // broadcastToViewers sends a message to all connected viewers.
 func broadcastToViewers(msg map[string]interface{}) {
 	mu.RLock()
-	defer mu.RUnlock()
+	viewers := make([]*Client, 0)
 	for _, c := range clients {
 		if c.Type == "viewer" {
-			sendJSON(c, msg)
+			viewers = append(viewers, c)
 		}
+	}
+	mu.RUnlock()
+
+	for _, c := range viewers {
+		sendJSON(c, msg)
 	}
 }
 

@@ -83,8 +83,8 @@
         let currentBroadcasterId = null;
         let shouldReconnect = true;
         let reconnectTimer = null;
-        let rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-        fetchRtcConfig().then(cfg => { rtcConfig = cfg; });
+        let rtcConfig = null;
+        const rtcConfigReady = fetchRtcConfig().then(cfg => { rtcConfig = cfg; });
 
         const refreshBtn = document.getElementById('refreshBtn');
         const broadcasterList = document.getElementById('broadcasterList');
@@ -100,6 +100,15 @@
 
         // Connect to signaling server
         function connectToServer() {
+            // Cancel any pending reconnect timer
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+            // Don't open a new socket if one is already connecting or open
+            if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+                return;
+            }
             try {
                 const wsUrl = getWebSocketUrl();
                 ws = new WebSocket(wsUrl);
@@ -209,6 +218,7 @@
                 currentBroadcasterId = broadcasterId;
                 showStatus('Connecting to broadcast...', 'info');
                 setNavStatus('connecting');
+                await rtcConfigReady;
 
                 peerConnection = new RTCPeerConnection(rtcConfig);
                 peerConnection.addTransceiver('video', { direction: 'recvonly' });

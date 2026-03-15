@@ -39,6 +39,10 @@ make clean           # Remove dist/
 make icon            # Generate Windows icon resources
 ```
 
+### Building
+
+**Important:** On Windows, run `make build-all` from **PowerShell**, not from MSYS/Git Bash. The MSYS bash shell causes `Access is denied` errors when cross-compiling (`GOOS=windows`) because Go resolves the temp directory to `C:\WINDOWS` instead of the user's temp folder.
+
 ## Architecture Notes
 
 - The Go server handles both HTTP file serving and WebSocket signaling on the same port.
